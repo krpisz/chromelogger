@@ -18,7 +18,7 @@
         "128": "icon128.png"
     },
     "description": "For server side logging and debugging in chrome console.",
-    "browser_action": {
+    "page_action": {
         "default_icon": "icon38_disabled.png",
         "default_title": "Chrome Logger"
     },
@@ -27,6 +27,7 @@
     "permissions":
     [
         "webRequest",
+        "webRequestBlocking",
         "tabs",
         "http://*/*",
         "https://*/*"

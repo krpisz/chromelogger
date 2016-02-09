@@ -4,6 +4,7 @@
 
     var active = false;
     var inactiveSuffix = ' (inactive)';
+    var manifest = chrome.runtime.getManifest();
 
     // list of all tabs with chrome logger enabled
     var tabsWithExtensionEnabled = [];
@@ -70,25 +71,24 @@
             tabsWithExtensionEnabled.push(tabId);
         }
 
-        _enableIcon();
+        _enableIcon(tabId);
         _activateTitle(tabId);
     }
 
     function _deactivate(tabId) {
         active = false;
-
         var index = tabsWithExtensionEnabled.indexOf(tabId);
         if (index !== -1) {
             tabsWithExtensionEnabled.splice(index, 1);
         }
 
-        _disableIcon();
+        _disableIcon(tabId);
         _deactivateTitle(tabId);
     }
 
     function _activateTitle(tabId) {
-        chrome.browserAction.getTitle({tabId: tabId}, function(title) {
-            chrome.browserAction.setTitle({
+        chrome.pageAction.getTitle({tabId: tabId}, function (title) {
+            chrome.pageAction.setTitle({
                 title: title.replace(inactiveSuffix, ''),
                 tabId: tabId
             });
@@ -96,22 +96,24 @@
     }
 
     function _deactivateTitle(tabId) {
-        chrome.browserAction.getTitle({tabId: tabId}, function(title) {
-            chrome.browserAction.setTitle({
+        chrome.pageAction.getTitle({tabId: tabId}, function (title) {
+            chrome.pageAction.setTitle({
                 title: title.indexOf(inactiveSuffix) === -1 ? title + inactiveSuffix : title,
                 tabId: tabId
             });
         });
     }
 
-    function _enableIcon() {
-        chrome.browserAction.setIcon({
+    function _enableIcon(tabId) {
+        chrome.pageAction.setIcon({
+            tabId: tabId,
             path: "icon38.png"
         });
     }
 
-    function _disableIcon() {
-        chrome.browserAction.setIcon({
+    function _disableIcon(tabId) {
+        chrome.pageAction.setIcon({
+            tabId: tabId,
             path: "icon38_disabled.png"
         });
     }
@@ -165,6 +167,8 @@
             return;
         }
 
+        chrome.pageAction.show(id);
+
         if (_tabIsChrome(tab)) {
             _deactivate(id);
             return;
@@ -180,22 +184,31 @@
 
     function _addListeners() {
         var queuedRequests = [];
-        chrome.browserAction.onClicked.addListener(_handleIconClick);
+        chrome.pageAction.onClicked.addListener(_handleIconClick);
         chrome.tabs.onActivated.addListener(_handleTabActivated);
         chrome.tabs.onCreated.addListener(_handleTabEvent);
         chrome.tabs.onUpdated.addListener(_handleTabUpdated);
 
-        chrome.webRequest.onResponseStarted.addListener(function(details) {
+        chrome.webRequest.onResponseStarted.addListener(function (details) {
             if (tabsWithExtensionEnabled.indexOf(details.tabId) !== -1) {
-                chrome.tabs.sendMessage(details.tabId, {name: "header_update", details: details}, function(response) {
+                chrome.tabs.sendMessage(details.tabId, {name: "header_update", details: details}, function (response) {
                     if (!response) {
                         queuedRequests.push(details);
                     }
                 });
             }
         }, {urls: ["<all_urls>"]}, ["responseHeaders"]);
+     
+        chrome.webRequest.onBeforeSendHeaders.addListener(function (details) {
+            details.requestHeaders.push({
+                name: 'X-ChromeLogger-Version',
+                value: manifest.version
+            })
 
-        chrome.extension.onMessage.addListener(function(request, sender, sendResponse) {
+            return {requestHeaders: details.requestHeaders};
+        }, {urls: ["<all_urls>"]}, ["blocking", "requestHeaders"]);
+
+        chrome.extension.onMessage.addListener(function (request, sender, sendResponse) {
             if (request === "localStorage") {
                 return sendResponse(localStorage);
             }
@@ -213,4 +226,4 @@
     }
 
     _addListeners();
-}) ();
+})();
